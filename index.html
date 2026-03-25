@@ -471,15 +471,17 @@
             );
         };
 
-        const EditModal = ({ bus, currentSituacao, currentStatus, currentNovoPrefixo, onClose, onSave, situacaoOptions, statusOptions }) => {
-            const [localSituacao, setLocalSituacao] = useState(currentSituacao);
-            const [localStatus, setLocalStatus] = useState(currentStatus);
+        const EditModal = ({ bus, currentSituacao, currentStatus, currentNovoPrefixo, currentBanco, onClose, onSave, situacaoOptions, statusOptions, bancoOptions }) => {
+            const [localSituacao, setLocalSituacao] = useState(currentSituacao || '');
+            const [localStatus, setLocalStatus] = useState(currentStatus || '');
             const [localNovoPrefixo, setLocalNovoPrefixo] = useState(currentNovoPrefixo || '');
+            const [localBanco, setLocalBanco] = useState(currentBanco || '');
 
             const defaultSituacaoOptions = ["EM OPERAÇAO", "LIBERADO", "EM MANUTENÇÃO", "OFICINA MECANICA", "REFORMAR", "FUNILARIA", "PARADO", "PRONTO", "BRASO", "VENDIDO"];
             const defaultStatusOptions = ["RTP", "ETBL", "A", "P", "R"];
             const allSituacaoOptions = [...new Set([...(situacaoOptions || []), ...defaultSituacaoOptions])].sort();
             const allStatusOptions = [...new Set([...(statusOptions || []), ...defaultStatusOptions])].sort();
+            const allBancoOptions = [...new Set([...(bancoOptions || [])])].sort();
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 modal-backdrop backdrop-blur-sm p-4">
@@ -497,11 +499,12 @@
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Novo Prefixo (Equivalência)</label><input type="text" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg border bg-white shadow-sm" placeholder="Digite o novo prefixo..." value={localNovoPrefixo} onChange={(e) => setLocalNovoPrefixo(e.target.value)} /></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label><select className="block w-full px-3 py-2.5 border-slate-300 rounded-lg border bg-white shadow-sm" value={localStatus} onChange={(e) => setLocalStatus(e.target.value)}><option value="">Selecione...</option>{allStatusOptions.map(opt => (<option key={opt} value={opt}>{STATUS_MAP[opt] || opt}</option>))}</select></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Situação</label><select className="block w-full px-3 py-2.5 border-slate-300 rounded-lg border bg-white shadow-sm" value={localSituacao} onChange={(e) => setLocalSituacao(e.target.value)}><option value="">Selecione...</option>{allSituacaoOptions.map(opt => (<option key={opt} value={opt}>{opt}</option>))}</select></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Banco</label><select className="block w-full px-3 py-2.5 border-slate-300 rounded-lg border bg-white shadow-sm" value={localBanco} onChange={(e) => setLocalBanco(e.target.value)}><option value="">Selecione...</option>{allBancoOptions.map(opt => (<option key={opt} value={opt}>{opt}</option>))}</select></div>
                             </div>
                         </div>
                         <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
                             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg">Cancelar</button>
-                            <button onClick={() => onSave(localSituacao, localStatus, localNovoPrefixo)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg flex items-center gap-2"><Save className="w-4 h-4" /> Salvar</button>
+                            <button onClick={() => onSave(localSituacao, localStatus, localNovoPrefixo, localBanco)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg flex items-center gap-2"><Save className="w-4 h-4" /> Salvar</button>
                         </div>
                     </div>
                 </div>
@@ -656,13 +659,14 @@
             }, [fleetData]);
 
             // Ações de Escrita
-            const handleSaveEdit = async (newSituacao, newStatus, newNovoPrefixo) => {
+            const handleSaveEdit = async (newSituacao, newStatus, newNovoPrefixo, newBanco) => {
                 if (!editingVehicle || !user) return;
                 try {
                     await db.collection(COLLECTION_NAME).doc(editingVehicle.firestoreId).update({
                         [keys.SITUACAO]: newSituacao,
                         [keys.STATUS]: newStatus,
-                        [keys.NOVO_PREFIXO]: newNovoPrefixo
+                        [keys.NOVO_PREFIXO]: newNovoPrefixo,
+                        [keys.BANCO]: newBanco
                     });
                     setEditingVehicle(null);
                 } catch (e) { alert("Erro ao salvar: " + e.message); }
@@ -1149,7 +1153,7 @@
                         </div>
                     )}
                     
-                    {editingVehicle && <EditModal bus={editingVehicle} currentSituacao={editingVehicle[keys.SITUACAO]} currentStatus={editingVehicle[keys.STATUS]} currentNovoPrefixo={editingVehicle[keys.NOVO_PREFIXO]} onClose={() => setEditingVehicle(null)} onSave={handleSaveEdit} situacaoOptions={uniqueValues.situacao} statusOptions={uniqueValues.status} />}
+                    {editingVehicle && <EditModal bus={editingVehicle} currentSituacao={editingVehicle[keys.SITUACAO]} currentStatus={editingVehicle[keys.STATUS]} currentNovoPrefixo={editingVehicle[keys.NOVO_PREFIXO]} currentBanco={editingVehicle[keys.BANCO]} onClose={() => setEditingVehicle(null)} onSave={handleSaveEdit} situacaoOptions={uniqueValues.situacao} statusOptions={uniqueValues.status} bancoOptions={uniqueValues.banco} />}
                     {sellingVehicle && <SalesModal bus={sellingVehicle} onClose={() => setSellingVehicle(null)} onConfirm={handleConfirmSale} />}
                     {isSettingsOpen && <SettingsModal initialOptions={uniqueValues} onClose={() => setIsSettingsOpen(false)} onSave={handleSaveSettings} />}
 
