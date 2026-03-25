@@ -117,9 +117,12 @@
         const Lock = (props) => <IconBase {...props}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></IconBase>;
         const ChevronDown = (props) => <IconBase {...props}><path d="m6 9 6 6 6-6"/></IconBase>;
         const Check = (props) => <IconBase {...props}><polyline points="20 6 9 17 4 12"/></IconBase>;
-        const PlusCircle = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></IconBase>;
+        const SettingsIcon = (props) => <IconBase {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>;
+        const Plus = (props) => <IconBase {...props}><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></IconBase>;
+        const Trash = (props) => <IconBase {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></IconBase>;
 
         // --- DADOS E VARIÁVEIS ---
+        
         const STATUS_MAP = {
             'P': 'Palmas',
             'ETBL': 'Braso Lisboa',
@@ -131,6 +134,7 @@
         const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#8884d8', '#82ca9d'];
 
         // --- FUNÇÕES DE LÓGICA ---
+
         const normalizeText = (text) => {
             if (!text) return '';
             return text.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
@@ -155,13 +159,139 @@
         };
 
         const formatCurrency = (value) => {
-            if (!value && value !== 0) return '';
+            if (!value) return '';
             const num = parseFloat(value);
             if (isNaN(num)) return value;
             return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
         };
 
         // --- COMPONENTES ---
+        const SettingsModal = ({ initialOptions, onClose, onSave }) => {
+            const [localSettings, setLocalSettings] = useState({
+                status: initialOptions.status || [],
+                situacao: initialOptions.situacao || [],
+                banco: initialOptions.banco || []
+            });
+
+            const [trackedEdits, setTrackedEdits] = useState([]);
+            const [trackedDeletes, setTrackedDeletes] = useState([]);
+            const [modalState, setModalState] = useState({ isOpen: false, type: '', action: '', oldValue: '', value: '' });
+
+            const handleOpenModal = (type, action, oldValue = '') => setModalState({ isOpen: true, type, action, oldValue, value: oldValue });
+            const handleCloseModal = () => setModalState({ ...modalState, isOpen: false });
+
+            const handleConfirmModal = () => {
+                const { type, action, oldValue, value } = modalState;
+                const cleanVal = value.trim().toUpperCase();
+                if (!cleanVal) return;
+
+                setLocalSettings(prev => {
+                    const currentList = prev[type];
+                    if (action === 'add') {
+                        if (!currentList.includes(cleanVal)) {
+                            return { ...prev, [type]: [...currentList, cleanVal].sort() };
+                        }
+                    } else if (action === 'edit' && oldValue !== cleanVal) {
+                        setTrackedEdits(prevEdits => [...prevEdits, { type, old: oldValue, new: cleanVal }]);
+                        return { ...prev, [type]: currentList.map(item => item === oldValue ? cleanVal : item).sort() };
+                    }
+                    return prev;
+                });
+                handleCloseModal();
+            };
+
+            const handleRemove = (type, val) => {
+                if(confirm(`Tem certeza que deseja excluir a opção "${val}"?\n\nIsso removerá a opção das listas. Se essa opção existir em veículos cadastrados, ela também será apagada deles (ficando em branco).`)) {
+                    setTrackedDeletes(prev => [...prev, { type, val }]);
+                    setLocalSettings(prev => ({ ...prev, [type]: prev[type].filter(i => i !== val) }));
+                }
+            };
+
+            const Section = ({ title, type }) => (
+                <div className="mb-6">
+                    <div className="flex justify-between items-center mb-3">
+                        <h4 className="text-sm font-semibold text-slate-700">{title}</h4>
+                        <button onClick={() => handleOpenModal(type, 'add')} className="flex items-center gap-1 text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors font-medium border border-blue-100 shadow-sm">
+                            <Plus className="w-3.5 h-3.5" /> Adicionar
+                        </button>
+                    </div>
+                    <div className="flex flex-col gap-2 max-h-48 overflow-y-auto custom-scrollbar p-2 border border-slate-200 rounded-xl bg-slate-50/50 shadow-inner">
+                        {localSettings[type].map(item => (
+                            <div key={item} className="flex items-center justify-between bg-white border border-slate-200 shadow-sm px-3 py-2.5 rounded-lg text-sm font-medium text-slate-700 group hover:border-blue-300 transition-colors">
+                                <span className="truncate pr-4">{item}</span>
+                                <div className="flex items-center gap-1">
+                                    <button onClick={() => handleOpenModal(type, 'edit', item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Editar Nome">
+                                        <Edit className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => handleRemove(type, item)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Excluir Opção">
+                                        <Trash className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                        {localSettings[type].length === 0 && <div className="text-xs text-slate-400 italic p-3 text-center bg-white rounded-lg border border-dashed border-slate-200">Nenhum item cadastrado.</div>}
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 modal-backdrop backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                        <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><SettingsIcon className="w-5 h-5 text-slate-600" /> Configurar Filtros</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-6 overflow-y-auto custom-scrollbar bg-white">
+                            <div className="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex gap-3 text-sm text-amber-800">
+                                <AlertTriangle className="w-5 h-5 flex-shrink-0 mt-0.5 text-amber-600" />
+                                <div>
+                                    <strong className="block mb-1">Atenção ao Editar/Excluir</strong>
+                                    Alterar o nome ou excluir opções afetará <b>todos os veículos</b> que as utilizam atualmente, atualizando a base de dados automaticamente.
+                                </div>
+                            </div>
+                            <Section title="Opções de Status" type="status" />
+                            <Section title="Opções de Situação" type="situacao" />
+                            <Section title="Opções de Banco" type="banco" />
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
+                            <button onClick={onClose} className="px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 shadow-sm">Cancelar</button>
+                            <button onClick={() => onSave(localSettings, trackedEdits, trackedDeletes)} className="px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg flex items-center gap-2 hover:bg-blue-700 shadow-sm"><Save className="w-4 h-4" /> Salvar Alterações</button>
+                        </div>
+                    </div>
+
+                    {modalState.isOpen && (
+                        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-150">
+                            <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
+                                <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                    <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                                        {modalState.action === 'add' ? <Plus className="w-4 h-4 text-blue-600" /> : <Edit className="w-4 h-4 text-blue-600" />}
+                                        {modalState.action === 'add' ? `Adicionar ${modalState.type === 'situacao' ? 'Situação' : modalState.type}` : 'Editar Opção'}
+                                    </h4>
+                                    <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-600"><XIcon className="w-4 h-4" /></button>
+                                </div>
+                                <div className="p-5">
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Nome da Opção</label>
+                                    <input 
+                                        type="text" 
+                                        autoFocus
+                                        className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500 uppercase shadow-sm"
+                                        value={modalState.value}
+                                        onChange={e => setModalState({...modalState, value: e.target.value})}
+                                        onKeyDown={e => e.key === 'Enter' && handleConfirmModal()}
+                                        placeholder="Digite o nome..."
+                                    />
+                                </div>
+                                <div className="px-5 py-4 bg-slate-50 flex justify-end gap-2 border-t border-slate-100">
+                                    <button onClick={handleCloseModal} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg shadow-sm">Cancelar</button>
+                                    <button onClick={handleConfirmModal} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700">Confirmar</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
         const MultiSelectDropdown = ({ label, options, selectedValues, onChange, mapLabel }) => {
             const [isOpen, setIsOpen] = useState(false);
             const dropdownRef = React.useRef(null);
@@ -341,11 +471,10 @@
             );
         };
 
-        const EditModal = ({ bus, currentSituacao, currentStatus, currentNovoPrefixo, currentBanco, onClose, onSave, situacaoOptions, statusOptions, bancoOptions }) => {
+        const EditModal = ({ bus, currentSituacao, currentStatus, currentNovoPrefixo, onClose, onSave, situacaoOptions, statusOptions }) => {
             const [localSituacao, setLocalSituacao] = useState(currentSituacao);
             const [localStatus, setLocalStatus] = useState(currentStatus);
             const [localNovoPrefixo, setLocalNovoPrefixo] = useState(currentNovoPrefixo || '');
-            const [localBanco, setLocalBanco] = useState(currentBanco || '');
 
             const defaultSituacaoOptions = ["EM OPERAÇAO", "LIBERADO", "EM MANUTENÇÃO", "OFICINA MECANICA", "REFORMAR", "FUNILARIA", "PARADO", "PRONTO", "BRASO", "VENDIDO"];
             const defaultStatusOptions = ["RTP", "ETBL", "A", "P", "R"];
@@ -368,18 +497,11 @@
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Novo Prefixo (Equivalência)</label><input type="text" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg border bg-white shadow-sm" placeholder="Digite o novo prefixo..." value={localNovoPrefixo} onChange={(e) => setLocalNovoPrefixo(e.target.value)} /></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Status</label><select className="block w-full px-3 py-2.5 border-slate-300 rounded-lg border bg-white shadow-sm" value={localStatus} onChange={(e) => setLocalStatus(e.target.value)}><option value="">Selecione...</option>{allStatusOptions.map(opt => (<option key={opt} value={opt}>{STATUS_MAP[opt] || opt}</option>))}</select></div>
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Situação</label><select className="block w-full px-3 py-2.5 border-slate-300 rounded-lg border bg-white shadow-sm" value={localSituacao} onChange={(e) => setLocalSituacao(e.target.value)}><option value="">Selecione...</option>{allSituacaoOptions.map(opt => (<option key={opt} value={opt}>{opt}</option>))}</select></div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Banco / Financiador</label>
-                                    <input type="text" list="banco-options-list" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg border bg-white shadow-sm" placeholder="Digite ou selecione o banco..." value={localBanco} onChange={(e) => setLocalBanco(e.target.value)} />
-                                    <datalist id="banco-options-list">
-                                        {(bancoOptions || []).map(opt => <option key={opt} value={opt} />)}
-                                    </datalist>
-                                </div>
                             </div>
                         </div>
                         <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
                             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg">Cancelar</button>
-                            <button onClick={() => onSave(localSituacao, localStatus, localNovoPrefixo, localBanco)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg flex items-center gap-2"><Save className="w-4 h-4" /> Salvar</button>
+                            <button onClick={() => onSave(localSituacao, localStatus, localNovoPrefixo)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg flex items-center gap-2"><Save className="w-4 h-4" /> Salvar</button>
                         </div>
                     </div>
                 </div>
@@ -389,17 +511,7 @@
         const SalesModal = ({ bus, onClose, onConfirm }) => {
             const [comprador, setComprador] = useState('');
             const [valor, setValor] = useState('');
-            const [valorRecebido, setValorRecebido] = useState('');
-            const [errorMsg, setErrorMsg] = useState('');
-
-            const handleSubmit = () => { 
-                setErrorMsg('');
-                if (!comprador || !valor || !valorRecebido) { 
-                    setErrorMsg("Preencha todos os campos, incluindo o valor recebido (pode ser 0)."); 
-                    return; 
-                } 
-                onConfirm(bus, comprador, valor, valorRecebido); 
-            };
+            const handleSubmit = () => { if (!comprador || !valor) { alert("Preencha todos os campos."); return; } onConfirm(bus, comprador, valor); };
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 modal-backdrop backdrop-blur-sm p-4">
@@ -413,100 +525,13 @@
                                 <p className="text-sm text-emerald-800 font-medium text-center">Venda de <span className="font-bold">{bus.PREFIXO} ({bus.PLACA})</span></p>
                             </div>
                             <div className="space-y-4">
-                                {errorMsg && <div className="bg-red-50 p-3 rounded-lg flex items-center gap-2 text-red-700 text-sm animate-pulse"><AlertTriangle className="w-4 h-4" />{errorMsg}</div>}
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Comprador</label><input type="text" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500" value={comprador} onChange={(e) => setComprador(e.target.value)} /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Valor Total da Venda (R$)</label><input type="number" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500" value={valor} onChange={(e) => setValor(e.target.value)} /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Valor Inicial Recebido (R$)</label><input type="number" className="block w-full px-3 py-2.5 border-emerald-300 rounded-lg bg-emerald-50 focus:bg-white focus:ring-2 focus:ring-emerald-100 focus:border-emerald-500" value={valorRecebido} onChange={(e) => setValorRecebido(e.target.value)} placeholder="Quanto foi pago de entrada" /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Comprador</label><input type="text" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg" value={comprador} onChange={(e) => setComprador(e.target.value)} /></div>
+                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label><input type="number" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg" value={valor} onChange={(e) => setValor(e.target.value)} /></div>
                             </div>
                         </div>
                         <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
                             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg">Cancelar</button>
-                            <button onClick={handleSubmit} className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Confirmar Venda</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const PaymentModal = ({ bus, keys, onClose, onConfirm }) => {
-            const valorVenda = bus[keys.PRICE] || 0;
-            const valorRecebidoAtual = bus[keys.RECEIVED_AMOUNT] || 0;
-            const [totalRecebido, setTotalRecebido] = useState(valorRecebidoAtual.toString());
-            const [errorMsg, setErrorMsg] = useState('');
-
-            const handleSubmit = () => {
-                setErrorMsg('');
-                const amount = parseFloat(totalRecebido);
-                if (isNaN(amount) || amount < 0) { setErrorMsg("Insira um valor válido (zero ou maior)."); return; }
-                if (amount > valorVenda) { setErrorMsg(`O valor total recebido não pode ser maior que o valor da venda.`); return; }
-                onConfirm(bus, amount);
-            };
-
-            const aReceber = valorVenda - (parseFloat(totalRecebido) || 0);
-
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 modal-backdrop backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
-                        <div className="bg-blue-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
-                            <h3 className="font-bold text-lg text-blue-800 flex items-center gap-2"><DollarSign className="w-5 h-5" /> Gerenciar Recebimento</h3>
-                            <button onClick={onClose} className="text-blue-400 hover:text-blue-600 transition-colors"><XIcon className="w-5 h-5" /></button>
-                        </div>
-                        <div className="p-6">
-                            <div className="mb-6 bg-blue-50/50 p-4 rounded-lg border border-blue-100 text-sm">
-                                <p className="text-blue-800 font-medium mb-1">Veículo: <span className="font-bold">{bus.PREFIXO}</span></p>
-                                <p className="text-slate-600 mb-3">Comprador: <span className="font-medium">{bus[keys.BUYER]}</span></p>
-                                
-                                <div className="grid grid-cols-2 gap-3 text-xs">
-                                    <div className="bg-white p-2 rounded border border-slate-200">
-                                        <span className="text-slate-500 block mb-1">Valor Total da Venda</span>
-                                        <strong className="text-slate-800 text-sm">{formatCurrency(valorVenda)}</strong>
-                                    </div>
-                                    <div className="bg-amber-50 p-2 rounded border border-amber-200">
-                                        <span className="text-amber-700 block mb-1">Restante a Pagar</span>
-                                        <strong className="text-amber-600 text-sm">{formatCurrency(aReceber > 0 ? aReceber : 0)}</strong>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                {errorMsg && <div className="bg-red-50 p-3 rounded-lg flex items-center gap-2 text-red-700 text-sm animate-pulse"><AlertTriangle className="w-4 h-4" />{errorMsg}</div>}
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Total Recebido Até Agora (R$)</label>
-                                    <input 
-                                        type="number" 
-                                        step="0.01" 
-                                        className="block w-full px-3 py-2.5 border-blue-300 rounded-lg bg-blue-50 focus:bg-white focus:ring-2 focus:ring-blue-100 focus:border-blue-500 text-blue-900 font-bold" 
-                                        value={totalRecebido} 
-                                        onChange={(e) => setTotalRecebido(e.target.value)} 
-                                        placeholder="Valor total recebido" 
-                                    />
-                                    <p className="text-xs text-slate-500 mt-2">Dica: Atualize este campo para o valor correto caso precise corrigir ou adicionar um novo pagamento.</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
-                            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">Cancelar</button>
-                            <button onClick={handleSubmit} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg flex items-center gap-2 hover:bg-blue-700"><CheckCircle className="w-4 h-4" /> Salvar</button>
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        const CancelSaleModal = ({ bus, onClose, onConfirm }) => {
-            return (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 modal-backdrop backdrop-blur-sm p-4">
-                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
-                        <div className="bg-red-50 px-6 py-4 border-b border-red-100 flex justify-between items-center">
-                            <h3 className="font-bold text-lg text-red-800 flex items-center gap-2"><AlertTriangle className="w-5 h-5" /> Cancelar Venda</h3>
-                            <button onClick={onClose} className="text-red-400 hover:text-red-600 transition-colors"><XIcon className="w-5 h-5" /></button>
-                        </div>
-                        <div className="p-6">
-                            <p className="text-slate-700 mb-4">Tem a certeza que deseja desfazer a venda do veículo <strong className="text-slate-900">{bus.PREFIXO}</strong>?</p>
-                            <p className="text-sm text-slate-500">Ao confirmar, os dados do comprador e os valores recebidos serão apagados. O veículo retornará à frota como "DISPONÍVEL".</p>
-                        </div>
-                        <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
-                            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">Voltar</button>
-                            <button onClick={() => onConfirm(bus)} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg flex items-center gap-2 hover:bg-red-700"><RotateCcw className="w-4 h-4" /> Confirmar Cancelamento</button>
+                            <button onClick={handleSubmit} className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Confirmar</button>
                         </div>
                     </div>
                 </div>
@@ -526,12 +551,11 @@
             const [loginError, setLoginError] = useState('');
 
             const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
-            const [filters, setFilters] = useState({ status: [], situacao: [], banco: '', category: '', ano: '' });
-            
+            const [filters, setFilters] = useState({ status: [], situacao: [], banco: [], category: '', ano: '' });
             const [editingVehicle, setEditingVehicle] = useState(null);
             const [sellingVehicle, setSellingVehicle] = useState(null);
-            const [payingVehicle, setPayingVehicle] = useState(null); // NOVO STATE PARA PAGAMENTOS
-            const [cancelingVehicle, setCancelingVehicle] = useState(null); // NOVO STATE PARA CANCELAR VENDA
+            const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+            const [filterSettings, setFilterSettings] = useState({ status: [], situacao: [], banco: [] });
 
             // 1. Monitorar Status de Autenticação (Real)
             useEffect(() => {
@@ -552,7 +576,22 @@
 
                 setIsLoading(true);
                 const unsubscribe = db.collection(COLLECTION_NAME).onSnapshot((snapshot) => {
-                    const vehicles = snapshot.docs.map(doc => ({ firestoreId: doc.id, ...doc.data() }));
+                    const vehicles = [];
+                    let loadedSettings = { status: [], situacao: [], banco: [] };
+
+                    snapshot.docs.forEach(doc => {
+                        if (doc.id === '_SETTINGS_FILTERS_') {
+                            loadedSettings = {
+                                status: doc.data().status || [],
+                                situacao: doc.data().situacao || [],
+                                banco: doc.data().banco || []
+                            };
+                        } else {
+                            vehicles.push({ firestoreId: doc.id, ...doc.data() });
+                        }
+                    });
+
+                    setFilterSettings(loadedSettings);
                     setFirebaseError(null);
                     setFleetData(vehicles);
                     setIsLoading(false);
@@ -573,6 +612,7 @@
                 setAuthLoading(true);
                 try {
                     await auth.signInWithEmailAndPassword(email, password);
+                    // O useEffect do onAuthStateChanged vai lidar com o resto
                 } catch (err) {
                     console.error(err);
                     let msg = "Erro ao entrar.";
@@ -611,26 +651,24 @@
                     IS_SOLD: 'isSold',
                     BUYER: 'comprador',
                     PRICE: 'valor_venda',
-                    RECEIVED_AMOUNT: 'valor_recebido', // NOVO: Controle de valores recebidos
                     SALE_DATE: 'data_venda'
                 };
             }, [fleetData]);
 
             // Ações de Escrita
-            const handleSaveEdit = async (newSituacao, newStatus, newNovoPrefixo, newBanco) => {
+            const handleSaveEdit = async (newSituacao, newStatus, newNovoPrefixo) => {
                 if (!editingVehicle || !user) return;
                 try {
                     await db.collection(COLLECTION_NAME).doc(editingVehicle.firestoreId).update({
                         [keys.SITUACAO]: newSituacao,
                         [keys.STATUS]: newStatus,
-                        [keys.NOVO_PREFIXO]: newNovoPrefixo,
-                        [keys.BANCO]: newBanco
+                        [keys.NOVO_PREFIXO]: newNovoPrefixo
                     });
                     setEditingVehicle(null);
                 } catch (e) { alert("Erro ao salvar: " + e.message); }
             };
 
-            const handleConfirmSale = async (vehicle, buyer, price, receivedAmount) => {
+            const handleConfirmSale = async (vehicle, buyer, price) => {
                 if (!user) return;
                 try {
                     await db.collection(COLLECTION_NAME).doc(vehicle.firestoreId).update({
@@ -638,59 +676,109 @@
                         [keys.SITUACAO]: 'VENDIDO',
                         [keys.BUYER]: buyer,
                         [keys.PRICE]: parseFloat(price),
-                        [keys.RECEIVED_AMOUNT]: parseFloat(receivedAmount), // Salvando o recebido
                         [keys.SALE_DATE]: new Date().toLocaleDateString('pt-BR')
                     });
                     setSellingVehicle(null);
                 } catch (e) { alert("Erro ao vender: " + e.message); }
             };
 
-            // Atualização de Pagamento Extra
-            const handleUpdatePayment = async (vehicle, newTotalAmount) => {
+            const handleCancelSale = async (vehicle) => {
                 if (!user) return;
-                try {
-                    await db.collection(COLLECTION_NAME).doc(vehicle.firestoreId).update({
-                        [keys.RECEIVED_AMOUNT]: newTotalAmount
-                    });
-                    setPayingVehicle(null); // Fecha o modal
-                } catch (e) { console.error("Erro ao atualizar pagamento: " + e.message); }
+                if(confirm(`Cancelar venda do veículo ${vehicle[keys.PREFIXO]}?`)) {
+                    try {
+                        await db.collection(COLLECTION_NAME).doc(vehicle.firestoreId).update({
+                            [keys.IS_SOLD]: false,
+                            [keys.SITUACAO]: 'DISPONIVEL',
+                            [keys.BUYER]: null,
+                            [keys.PRICE]: null,
+                            [keys.SALE_DATE]: null
+                        });
+                    } catch (e) { alert("Erro ao cancelar: " + e.message); }
+                }
             };
 
-            const handleConfirmCancelSale = async (vehicle) => {
+            const handleSaveSettings = async (newSettings, edits = [], deletes = []) => {
                 if (!user) return;
                 try {
-                    await db.collection(COLLECTION_NAME).doc(vehicle.firestoreId).update({
-                        [keys.IS_SOLD]: false,
-                        [keys.SITUACAO]: 'DISPONIVEL', // Status padrão ao retornar
-                        [keys.BUYER]: firebase.firestore.FieldValue.delete(),
-                        [keys.PRICE]: firebase.firestore.FieldValue.delete(),
-                        [keys.RECEIVED_AMOUNT]: firebase.firestore.FieldValue.delete(),
-                        [keys.SALE_DATE]: firebase.firestore.FieldValue.delete()
-                    });
-                    setCancelingVehicle(null);
-                } catch (e) { console.error("Erro ao cancelar: " + e.message); }
+                    // Salva a nova lista de opções no documento '_SETTINGS_FILTERS_'
+                    await db.collection(COLLECTION_NAME).doc('_SETTINGS_FILTERS_').set(newSettings, { merge: true });
+                    
+                    // Se houveram edições ou exclusões, aplicar em todos os veículos correspondentes
+                    if (edits.length > 0 || deletes.length > 0) {
+                        let batch = db.batch();
+                        let count = 0;
+
+                        fleetData.forEach(vehicle => {
+                            if (vehicle.firestoreId === '_SETTINGS_FILTERS_') return;
+                            
+                            let needsUpdate = false;
+                            let updateData = {};
+
+                            edits.forEach(edit => {
+                                const dbKey = edit.type === 'banco' ? keys.BANCO : edit.type === 'situacao' ? keys.SITUACAO : keys.STATUS;
+                                if (vehicle[dbKey] === edit.old) {
+                                    updateData[dbKey] = edit.new;
+                                    needsUpdate = true;
+                                }
+                            });
+
+                            deletes.forEach(del => {
+                                const dbKey = del.type === 'banco' ? keys.BANCO : del.type === 'situacao' ? keys.SITUACAO : keys.STATUS;
+                                if (vehicle[dbKey] === del.val) {
+                                    updateData[dbKey] = ''; // Limpa o campo se a opção for excluída
+                                    needsUpdate = true;
+                                }
+                            });
+
+                            if (needsUpdate) {
+                                const ref = db.collection(COLLECTION_NAME).doc(vehicle.firestoreId);
+                                batch.update(ref, updateData);
+                                count++;
+                                
+                                // O limite do Firebase Batch é 500 operações. Commitamos se chegar perto.
+                                if (count >= 490) {
+                                    batch.commit();
+                                    batch = db.batch();
+                                    count = 0;
+                                }
+                            }
+                        });
+
+                        // Commita os batches restantes
+                        if (count > 0) {
+                            await batch.commit();
+                        }
+                    }
+
+                    setIsSettingsOpen(false);
+                } catch (e) {
+                    alert("Erro ao salvar configurações: " + e.message);
+                }
             };
 
             // Filtragem e Interatividade
             const handleEditClick = (vehicle) => setEditingVehicle(vehicle);
             const handleSellClick = (vehicle) => setSellingVehicle(vehicle);
             
+            // ALTERAÇÃO 2: Toggle para Múltipla Seleção (Status e Situação)
             const handleChartClick = (type, value) => {
-                if (type === 'status' || type === 'situacao') {
+                if (type === 'status' || type === 'situacao' || type === 'banco') {
                     setFilters(prev => {
-                        const list = prev[type];
+                        const list = prev[type] || [];
                         const newList = list.includes(value)
                             ? list.filter(item => item !== value)
                             : [...list, value];
+                        
                         return { ...prev, [type]: newList };
                     });
                 } else {
+                    // Para outros filtros
                     setFilters(prev => ({ ...prev, [type]: prev[type] === value ? '' : value }));
                 }
             };
 
             const handleYearClick = (year) => setFilters(prev => ({ ...prev, ano: prev.ano === year ? '' : year }));
-            const clearFilters = () => { setFilters({ status: [], situacao: [], banco: '', category: '', ano: '' }); setSearchTerm(''); };
+            const clearFilters = () => { setFilters({ status: [], situacao: [], banco: [], category: '', ano: '' }); setSearchTerm(''); };
             const requestSort = (key) => {
                 let direction = 'asc';
                 if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
@@ -700,20 +788,26 @@
             const filteredData = useMemo(() => {
                 let data = fleetData.filter(item => !item[keys.IS_SOLD]);
                 
+                // ALTERAÇÃO 3: Filtro com includes (Status)
                 if (filters.status.length > 0) {
                     data = data.filter(item => filters.status.includes(item[keys.STATUS]));
                 }
 
+                // ALTERAÇÃO 3: Filtro com includes (Situação)
                 if (filters.situacao.length > 0) {
                     data = data.filter(item => {
                         const rawSit = item[keys.SITUACAO] || '';
                         let sitToCheck = rawSit;
-                        if (normalizeText(rawSit).startsWith('A.')) sitToCheck = 'ALUGADOS';
+                        if (normalizeText(rawSit).startsWith('A.')) sitToCheck = 'ALUGADOS'; // Mantém compatibilidade com a lógica anterior
+                        // Verifica se o valor original ou o valor tratado (ALUGADOS) está na lista de filtros
                         return filters.situacao.includes(sitToCheck) || filters.situacao.includes(rawSit);
                     });
                 }
 
-                if (filters.banco) data = data.filter(item => item[keys.BANCO] === filters.banco);
+                if (filters.banco.length > 0) {
+                    data = data.filter(item => filters.banco.includes(item[keys.BANCO]));
+                }
+                
                 if (filters.category) data = data.filter(item => getStatusCategory(item[keys.SITUACAO]) === filters.category);
                 if (filters.ano) {
                     data = data.filter(item => {
@@ -775,14 +869,19 @@
             }, [filteredData, keys]); 
 
             const uniqueValues = useMemo(() => {
-                const getUnique = (key) => [...new Set(fleetData.map(item => item[key]).filter(Boolean))].sort();
-                const situacoes = [...new Set(fleetData.map(item => {
+                const getUnique = (key) => [...new Set(fleetData.map(item => item[key]).filter(Boolean))];
+                
+                const situacoes = fleetData.map(item => {
                     const s = item[keys.SITUACAO];
                     return normalizeText(s).startsWith('A.') ? 'ALUGADOS' : s;
-                }).filter(Boolean))].sort();
+                }).filter(Boolean);
 
-                return { status: getUnique(keys.STATUS), situacao: situacoes, banco: getUnique(keys.BANCO) };
-            }, [fleetData, keys]);
+                return { 
+                    status: [...new Set([...getUnique(keys.STATUS), ...(filterSettings.status || [])])].sort(), 
+                    situacao: [...new Set([...situacoes, ...(filterSettings.situacao || [])])].sort(), 
+                    banco: [...new Set([...getUnique(keys.BANCO), ...(filterSettings.banco || [])])].sort() 
+                };
+            }, [fleetData, keys, filterSettings]);
 
             const processedData = useMemo(() => {
                 let data = [...filteredData]; 
@@ -802,7 +901,8 @@
                 </th>
             );
             
-            const activeFiltersCount = filters.status.length + filters.situacao.length + (filters.banco ? 1 : 0) + (filters.category ? 1 : 0) + (filters.ano ? 1 : 0) + (searchTerm ? 1 : 0);
+            // Calculamos quantos filtros estão ativos checando o tamanho dos arrays
+            const activeFiltersCount = filters.status.length + filters.situacao.length + filters.banco.length + (filters.category ? 1 : 0) + (filters.ano ? 1 : 0) + (searchTerm ? 1 : 0);
             
             const FilterBadge = ({ label, value, onClear }) => (<span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">{label}: {value}<button onClick={onClear} className="hover:text-blue-900"><XIcon className="w-3 h-3" /></button></span>);
 
@@ -810,10 +910,12 @@
             
             if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-pulse flex flex-col items-center"><Bus className="w-12 h-12 text-slate-300 mb-4" /><p className="text-slate-500 font-medium">Carregando sistema...</p></div></div>;
 
+            // Se não estiver logado, mostra Login
             if (!user) {
                 return <LoginScreen onLogin={handleLogin} error={loginError} isLoading={authLoading} />;
             }
 
+            // Se estiver logado, mostra Dashboard
             return (
                 <div className="min-h-screen bg-slate-50 font-sans text-slate-800 p-4 md:p-6 pb-20">
                     {firebaseError && (
@@ -846,10 +948,11 @@
                         <div className="mb-6 flex flex-wrap items-center gap-2 bg-white p-3 rounded-lg border border-slate-200 shadow-sm animate-in fade-in slide-in-from-top-2">
                             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1"><FilterIcon className="w-3 h-3" /> Filtros:</span>
                             
+                            {/* ALTERAÇÃO 4: Renderizar múltiplos badges */}
                             {filters.status.map(s => <FilterBadge key={s} label="Status" value={STATUS_MAP[s] || s} onClear={() => handleChartClick('status', s)} />)}
                             {filters.situacao.map(s => <FilterBadge key={s} label="Situação" value={s} onClear={() => handleChartClick('situacao', s)} />)}
+                            {filters.banco.map(b => <FilterBadge key={b} label="Banco" value={b} onClear={() => handleChartClick('banco', b)} />)}
                             
-                            {filters.banco && <FilterBadge label="Banco" value={filters.banco} onClear={() => setFilters({...filters, banco: ''})} />}
                             {filters.category && <FilterBadge label="Categoria" value={filters.category} onClear={() => setFilters({...filters, category: ''})} />}
                             {filters.ano && <FilterBadge label="Ano" value={filters.ano} onClear={() => setFilters({...filters, ano: ''})} />}
                             {searchTerm && <FilterBadge label="Busca" value={searchTerm} onClear={() => setSearchTerm('')} />}
@@ -869,7 +972,9 @@
                             </div>
                             <div className="mb-8"><h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 ml-1 flex items-center gap-2"><Calendar className="w-4 h-4" /> Frota por Ano</h3>{metrics.anosList.length > 0 ? (<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">{metrics.anosList.map((item) => (<Card key={item.name} title={`Ano ${item.name}`} value={item.value} icon={Calendar} color={item.name === 'N/D' ? 'red' : 'slate'} compact={true} clickable={true} onClick={() => handleYearClick(item.name)} />))}</div>) : (<div className="p-4 bg-yellow-50 text-yellow-700 rounded-lg flex items-center gap-2"><AlertCircle className="w-5 h-5" /> Nenhum dado de ano disponível.</div>)}</div>
                             
+                            {/* --- GRÁFICOS RESPONSIVOS MELHORADOS --- */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                                {/* Gráfico 1: Situação (Pizza) */}
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col min-w-0">
                                     <h3 className="text-lg font-semibold mb-4">Situação Operacional</h3>
                                     <div className="h-72 md:h-80 w-full">
@@ -896,6 +1001,7 @@
                                     </div>
                                 </div>
 
+                                {/* Gráfico 2: Banco (Barras Verticais) */}
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col min-w-0">
                                     <h3 className="text-lg font-semibold mb-4">Distribuição por Banco</h3>
                                     <div className="h-80 md:h-96 w-full">
@@ -916,6 +1022,7 @@
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                                {/* Gráfico 3: Modelos (Barras) */}
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col min-w-0">
                                     <h3 className="text-lg font-semibold mb-4">Modelos de Chassi</h3>
                                     <div className="h-72 md:h-80 w-full">
@@ -933,6 +1040,7 @@
                                     </div>
                                 </div>
 
+                                {/* Gráfico 4: Origem (Barras Verticais Longas) */}
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col min-w-0">
                                     <h3 className="text-lg font-semibold mb-4">Fornecedores / Origem</h3>
                                     <div className="h-96 md:h-[500px] w-full">
@@ -961,6 +1069,7 @@
                                     <div className="flex flex-col md:flex-row flex-wrap items-center gap-3">
                                         <div className="relative w-full md:w-auto md:flex-1 min-w-[200px]"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" /><input type="text" placeholder="Buscar..." className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
                                         <div className="flex items-center gap-2 w-full md:w-auto relative z-20">
+                                            {/* ALTERAÇÃO 5: Novo Componente MultiSelectDropdown */}
                                             <MultiSelectDropdown 
                                                 label="Status" 
                                                 options={uniqueValues.status} 
@@ -968,14 +1077,25 @@
                                                 onChange={(val) => handleChartClick('status', val)}
                                                 mapLabel={(val) => STATUS_MAP[val] || val}
                                             />
+
                                             <MultiSelectDropdown 
                                                 label="Situação" 
                                                 options={uniqueValues.situacao} 
                                                 selectedValues={filters.situacao} 
                                                 onChange={(val) => handleChartClick('situacao', val)}
                                             />
+
+                                            <MultiSelectDropdown 
+                                                label="Banco" 
+                                                options={uniqueValues.banco} 
+                                                selectedValues={filters.banco} 
+                                                onChange={(val) => handleChartClick('banco', val)}
+                                            />
                                         </div>
-                                        <button onClick={() => setView('sold_list')} className="w-full md:w-auto flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors text-sm font-medium whitespace-nowrap"><DollarSign className="w-4 h-4" /> Vendidos</button>
+                                        <div className="flex gap-2 w-full md:w-auto mt-3 md:mt-0">
+                                            <button onClick={() => setIsSettingsOpen(true)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-slate-100 text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors text-sm font-medium whitespace-nowrap"><SettingsIcon className="w-4 h-4" /> <span className="hidden sm:inline">Opções</span></button>
+                                            <button onClick={() => setView('sold_list')} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors text-sm font-medium whitespace-nowrap"><DollarSign className="w-4 h-4" /> Vendidos</button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1008,74 +1128,30 @@
                     {view === 'sold_list' && (
                         <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-right duration-500">
                              <div className="p-6 border-b border-slate-100">
-                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-                                    <div className="flex items-center gap-3"><div className="bg-emerald-100 p-2 rounded-lg"><ShoppingCart className="w-6 h-6 text-emerald-700" /></div><div><h3 className="text-xl font-bold text-slate-800">Veículos Vendidos</h3><p className="text-sm text-slate-500">Controle financeiro e histórico</p></div></div>
-                                    <div className="flex gap-3 w-full md:w-auto">
-                                        <div className="flex-1 md:flex-none bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-100 text-right">
-                                            <p className="text-xs text-emerald-600 font-semibold uppercase">Total Vendas</p>
-                                            <p className="text-xl font-bold text-emerald-800">{formatCurrency(soldData.reduce((acc, curr) => acc + (curr[keys.PRICE] || 0), 0))}</p>
-                                        </div>
-                                        <div className="flex-1 md:flex-none bg-amber-50 px-4 py-2 rounded-lg border border-amber-100 text-right">
-                                            <p className="text-xs text-amber-600 font-semibold uppercase">A Receber</p>
-                                            <p className="text-xl font-bold text-amber-800">{formatCurrency(soldData.reduce((acc, curr) => acc + ((curr[keys.PRICE] || 0) - (curr[keys.RECEIVED_AMOUNT] || 0)), 0))}</p>
-                                        </div>
-                                    </div>
+                                <div className="flex justify-between items-center mb-4">
+                                    <div className="flex items-center gap-3"><div className="bg-emerald-100 p-2 rounded-lg"><ShoppingCart className="w-6 h-6 text-emerald-700" /></div><div><h3 className="text-xl font-bold text-slate-800">Veículos Vendidos</h3><p className="text-sm text-slate-500">Histórico de vendas</p></div></div>
+                                    <div className="bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-100 text-right"><p className="text-xs text-emerald-600 font-semibold uppercase">Total</p><p className="text-2xl font-bold text-emerald-800">{formatCurrency(soldData.reduce((acc, curr) => acc + (curr[keys.PRICE] || 0), 0))}</p></div>
                                 </div>
                              </div>
                              <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm text-slate-600">
-                                    <thead className="bg-slate-50 text-slate-700 font-semibold uppercase text-xs">
-                                        <tr>
-                                            <th className="px-6 py-4">Data Venda</th>
-                                            <th className="px-6 py-4">Prefixo</th>
-                                            <th className="px-6 py-4">Placa</th>
-                                            <th className="px-6 py-4">Renavam</th>
-                                            <th className="px-6 py-4">Comprador</th>
-                                            <th className="px-6 py-4 text-right">Valor Venda</th>
-                                            <th className="px-6 py-4 text-right">Recebido</th>
-                                            <th className="px-6 py-4 text-right">A Receber</th>
-                                            <th className="px-6 py-4 text-center">Ações</th>
-                                        </tr>
-                                    </thead>
+                                    <thead className="bg-slate-50 text-slate-700 font-semibold uppercase text-xs"><tr><th className="px-6 py-4">Data Venda</th><th className="px-6 py-4">Prefixo</th><th className="px-6 py-4">Placa</th><th className="px-6 py-4">Ano</th><th className="px-6 py-4">Comprador</th><th className="px-6 py-4 text-right">Valor Venda</th><th className="px-6 py-4 text-center">Ações</th></tr></thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {soldData.length > 0 ? (soldData.map((bus, idx) => {
-                                            const valorVenda = bus[keys.PRICE] || 0;
-                                            const valorRecebido = bus[keys.RECEIVED_AMOUNT] || 0;
-                                            const aReceber = valorVenda - valorRecebido;
-
-                                            return (
+                                        {soldData.length > 0 ? (soldData.map((bus, idx) => (
                                                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="px-6 py-4 text-slate-500 whitespace-nowrap">{bus[keys.SALE_DATE] || '-'}</td>
-                                                    <td className="px-6 py-4 font-medium text-slate-900">{bus[keys.PREFIXO]}</td>
-                                                    <td className="px-6 py-4">{bus[keys.PLACA]}</td>
-                                                    <td className="px-6 py-4 font-mono text-xs text-slate-500">{bus[keys.RENAVAM] || '-'}</td>
-                                                    <td className="px-6 py-4 font-medium text-emerald-700">{bus[keys.BUYER]}</td>
-                                                    <td className="px-6 py-4 text-right font-bold text-slate-800 whitespace-nowrap">{formatCurrency(valorVenda)}</td>
-                                                    <td className="px-6 py-4 text-right font-bold text-blue-600 whitespace-nowrap">{formatCurrency(valorRecebido)}</td>
-                                                    <td className="px-6 py-4 text-right font-bold text-amber-600 whitespace-nowrap">{formatCurrency(aReceber)}</td>
-                                                    <td className="px-4 py-3 text-center align-middle">
-                                                        <div className="flex flex-col gap-1 items-center justify-center">
-                                                            <button onClick={() => setPayingVehicle(bus)} className="w-full text-blue-500 border border-blue-200 hover:bg-blue-50 hover:text-blue-700 transition-colors py-1.5 px-2 rounded flex items-center justify-center gap-1 text-[11px] font-bold uppercase tracking-wider shadow-sm bg-white" title="Atualizar valor recebido">
-                                                                <DollarSign className="w-3.5 h-3.5" /> Pagamentos
-                                                            </button>
-                                                            <button onClick={() => setCancelingVehicle(bus)} className="w-full text-slate-400 border border-transparent hover:border-red-200 hover:bg-red-50 hover:text-red-600 transition-colors py-1.5 px-2 rounded flex items-center justify-center gap-1 text-[11px] font-medium uppercase tracking-wider bg-transparent" title="Cancelar Venda (Voltar p/ Frota)">
-                                                                <RotateCcw className="w-3.5 h-3.5" /> Cancelar
-                                                            </button>
-                                                        </div>
-                                                    </td>
+                                                    <td className="px-6 py-4 text-slate-500">{bus[keys.SALE_DATE] || '-'}</td><td className="px-6 py-4 font-medium text-slate-900">{bus[keys.PREFIXO]}</td><td className="px-6 py-4">{bus[keys.PLACA]}</td><td className="px-6 py-4">{bus[keys.ANO]}</td><td className="px-6 py-4 font-medium text-emerald-700">{bus[keys.BUYER]}</td><td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(bus[keys.PRICE])}</td>
+                                                    <td className="px-6 py-4 text-center"><button onClick={() => handleCancelSale(bus)} className="text-red-400 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-red-50 flex items-center justify-center gap-1 mx-auto text-xs font-medium" title="Cancelar Venda"><RotateCcw className="w-4 h-4" /> Cancelar</button></td>
                                                 </tr>
-                                            );
-                                        })) : (<tr><td colSpan="9" className="px-6 py-12 text-center text-slate-400"><ShoppingCart className="w-12 h-12 mx-auto mb-3 text-slate-200" /><p>Nenhum veículo vendido registrado ainda.</p></td></tr>)}
+                                            ))) : (<tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400"><ShoppingCart className="w-12 h-12 mx-auto mb-3 text-slate-200" /><p>Nenhum veículo vendido registrado ainda.</p></td></tr>)}
                                     </tbody>
                                 </table>
                              </div>
                         </div>
                     )}
                     
-                    {editingVehicle && <EditModal bus={editingVehicle} currentSituacao={editingVehicle[keys.SITUACAO]} currentStatus={editingVehicle[keys.STATUS]} currentNovoPrefixo={editingVehicle[keys.NOVO_PREFIXO]} currentBanco={editingVehicle[keys.BANCO]} onClose={() => setEditingVehicle(null)} onSave={handleSaveEdit} situacaoOptions={uniqueValues.situacao} statusOptions={uniqueValues.status} bancoOptions={uniqueValues.banco} />}
+                    {editingVehicle && <EditModal bus={editingVehicle} currentSituacao={editingVehicle[keys.SITUACAO]} currentStatus={editingVehicle[keys.STATUS]} currentNovoPrefixo={editingVehicle[keys.NOVO_PREFIXO]} onClose={() => setEditingVehicle(null)} onSave={handleSaveEdit} situacaoOptions={uniqueValues.situacao} statusOptions={uniqueValues.status} />}
                     {sellingVehicle && <SalesModal bus={sellingVehicle} onClose={() => setSellingVehicle(null)} onConfirm={handleConfirmSale} />}
-                    {payingVehicle && <PaymentModal bus={payingVehicle} keys={keys} onClose={() => setPayingVehicle(null)} onConfirm={handleUpdatePayment} />}
-                    {cancelingVehicle && <CancelSaleModal bus={cancelingVehicle} onClose={() => setCancelingVehicle(null)} onConfirm={handleConfirmCancelSale} />}
+                    {isSettingsOpen && <SettingsModal initialOptions={uniqueValues} onClose={() => setIsSettingsOpen(false)} onSave={handleSaveSettings} />}
 
                     <div className="mt-8 flex flex-col items-center justify-center gap-2 text-xs text-slate-400">Dashboard de Frota • Firebase Secured</div>
                 </div>
