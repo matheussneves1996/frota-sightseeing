@@ -120,6 +120,7 @@
         const SettingsIcon = (props) => <IconBase {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconBase>;
         const Plus = (props) => <IconBase {...props}><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></IconBase>;
         const Trash = (props) => <IconBase {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></IconBase>;
+        const Wallet = (props) => <IconBase {...props}><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></IconBase>;
 
         // --- DADOS E VARIÁVEIS ---
         
@@ -159,7 +160,7 @@
         };
 
         const formatCurrency = (value) => {
-            if (!value) return '';
+            if (value === null || value === undefined) return '';
             const num = parseFloat(value);
             if (isNaN(num)) return value;
             return num.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -535,7 +536,12 @@
         const SalesModal = ({ bus, onClose, onConfirm }) => {
             const [comprador, setComprador] = useState('');
             const [valor, setValor] = useState('');
-            const handleSubmit = () => { if (!comprador || !valor) { alert("Preencha todos os campos."); return; } onConfirm(bus, comprador, valor); };
+            const [valorRecebido, setValorRecebido] = useState('');
+
+            const handleSubmit = () => { 
+                if (!comprador || !valor) { alert("Preencha o comprador e o valor de venda."); return; } 
+                onConfirm(bus, comprador, valor, valorRecebido || 0); 
+            };
 
             return (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 modal-backdrop backdrop-blur-sm p-4">
@@ -550,12 +556,59 @@
                             </div>
                             <div className="space-y-4">
                                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Comprador</label><input type="text" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg" value={comprador} onChange={(e) => setComprador(e.target.value)} /></div>
-                                <div><label className="block text-sm font-medium text-slate-700 mb-1">Valor (R$)</label><input type="number" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg" value={valor} onChange={(e) => setValor(e.target.value)} /></div>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Valor Venda (R$)</label><input type="number" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg" value={valor} onChange={(e) => setValor(e.target.value)} /></div>
+                                    <div><label className="block text-sm font-medium text-slate-700 mb-1">Já Recebido (R$)</label><input type="number" className="block w-full px-3 py-2.5 border-slate-300 rounded-lg" value={valorRecebido} onChange={(e) => setValorRecebido(e.target.value)} placeholder="0.00" /></div>
+                                </div>
                             </div>
                         </div>
                         <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
                             <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg">Cancelar</button>
-                            <button onClick={handleSubmit} className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Confirmar</button>
+                            <button onClick={handleSubmit} className="px-4 py-2 text-sm font-medium text-white bg-emerald-600 rounded-lg flex items-center gap-2"><CheckCircle className="w-4 h-4" /> Confirmar Venda</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const PaymentModal = ({ bus, keys, onClose, onConfirm }) => {
+            const [recebido, setRecebido] = useState(bus[keys.RECEIVED_AMOUNT] || '');
+            
+            const handleSubmit = () => { 
+                onConfirm(bus, recebido); 
+            };
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 modal-backdrop backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100">
+                        <div className="bg-blue-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
+                            <h3 className="font-bold text-lg text-blue-800 flex items-center gap-2"><Wallet className="w-5 h-5" /> Atualizar Pagamento</h3>
+                            <button onClick={onClose} className="text-blue-400 hover:text-blue-600 transition-colors"><XIcon className="w-5 h-5" /></button>
+                        </div>
+                        <div className="p-6">
+                            <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200 text-sm text-slate-700 leading-relaxed">
+                                <span className="block text-xs uppercase text-slate-500 font-bold mb-1">Detalhes da Venda</span>
+                                Veículo: <strong className="text-slate-900">{bus.PREFIXO}</strong><br/>
+                                Comprador: <strong className="text-slate-900">{bus[keys.BUYER]}</strong><br/>
+                                Valor Acordado: <strong className="text-slate-900">{formatCurrency(bus[keys.PRICE])}</strong>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Total Recebido Até Agora (R$)</label>
+                                    <input 
+                                        type="number" 
+                                        className="block w-full px-3 py-2.5 border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500" 
+                                        value={recebido} 
+                                        onChange={(e) => setRecebido(e.target.value)} 
+                                        placeholder="Ex: 50000"
+                                    />
+                                    <p className="text-xs text-slate-500 mt-2">Insira a quantia total que já foi paga pelo comprador (não apenas a última prestação).</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50 flex justify-end gap-3 border-t border-slate-100">
+                            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg">Cancelar</button>
+                            <button onClick={handleSubmit} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg flex items-center gap-2 hover:bg-blue-700"><CheckCircle className="w-4 h-4" /> Salvar Atualização</button>
                         </div>
                     </div>
                 </div>
@@ -578,6 +631,7 @@
             const [filters, setFilters] = useState({ status: [], situacao: [], banco: [], category: '', ano: '' });
             const [editingVehicle, setEditingVehicle] = useState(null);
             const [sellingVehicle, setSellingVehicle] = useState(null);
+            const [updatingPayment, setUpdatingPayment] = useState(null);
             const [isSettingsOpen, setIsSettingsOpen] = useState(false);
             const [filterSettings, setFilterSettings] = useState({ status: [], situacao: [], banco: [] });
 
@@ -702,6 +756,7 @@
                     IS_SOLD: 'isSold',
                     BUYER: 'comprador',
                     PRICE: 'valor_venda',
+                    RECEIVED_AMOUNT: 'valor_recebido',
                     SALE_DATE: 'data_venda'
                 };
             }, [fleetData]);
@@ -720,7 +775,7 @@
                 } catch (e) { alert("Erro ao salvar: " + e.message); }
             };
 
-            const handleConfirmSale = async (vehicle, buyer, price) => {
+            const handleConfirmSale = async (vehicle, buyer, price, receivedAmount) => {
                 if (!user) return;
                 try {
                     await db.collection(COLLECTION_NAME).doc(vehicle.firestoreId).update({
@@ -728,10 +783,21 @@
                         [keys.SITUACAO]: 'VENDIDO',
                         [keys.BUYER]: buyer,
                         [keys.PRICE]: parseFloat(price),
+                        [keys.RECEIVED_AMOUNT]: parseFloat(receivedAmount) || 0,
                         [keys.SALE_DATE]: new Date().toLocaleDateString('pt-BR')
                     });
                     setSellingVehicle(null);
                 } catch (e) { alert("Erro ao vender: " + e.message); }
+            };
+            
+            const handleUpdatePayment = async (vehicle, receivedAmount) => {
+                if (!user) return;
+                try {
+                    await db.collection(COLLECTION_NAME).doc(vehicle.firestoreId).update({
+                        [keys.RECEIVED_AMOUNT]: parseFloat(receivedAmount) || 0
+                    });
+                    setUpdatingPayment(null);
+                } catch (e) { alert("Erro ao atualizar pagamento: " + e.message); }
             };
 
             const handleCancelSale = async (vehicle) => {
@@ -743,6 +809,7 @@
                             [keys.SITUACAO]: 'DISPONIVEL',
                             [keys.BUYER]: null,
                             [keys.PRICE]: null,
+                            [keys.RECEIVED_AMOUNT]: null,
                             [keys.SALE_DATE]: null
                         });
                     } catch (e) { alert("Erro ao cancelar: " + e.message); }
@@ -1180,20 +1247,47 @@
                         <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-right duration-500">
                              <div className="p-6 border-b border-slate-100">
                                 <div className="flex justify-between items-center mb-4">
-                                    <div className="flex items-center gap-3"><div className="bg-emerald-100 p-2 rounded-lg"><ShoppingCart className="w-6 h-6 text-emerald-700" /></div><div><h3 className="text-xl font-bold text-slate-800">Veículos Vendidos</h3><p className="text-sm text-slate-500">Histórico de vendas</p></div></div>
-                                    <div className="bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-100 text-right"><p className="text-xs text-emerald-600 font-semibold uppercase">Total</p><p className="text-2xl font-bold text-emerald-800">{formatCurrency(soldData.reduce((acc, curr) => acc + (curr[keys.PRICE] || 0), 0))}</p></div>
+                                    <div className="flex items-center gap-3"><div className="bg-emerald-100 p-2 rounded-lg"><ShoppingCart className="w-6 h-6 text-emerald-700" /></div><div><h3 className="text-xl font-bold text-slate-800">Veículos Vendidos</h3><p className="text-sm text-slate-500">Histórico e Controlo de Pagamentos</p></div></div>
+                                    
+                                    <div className="flex flex-wrap gap-4">
+                                        <div className="bg-emerald-50 px-4 py-2 rounded-lg border border-emerald-100 text-right"><p className="text-xs text-emerald-600 font-semibold uppercase">Total Vendas</p><p className="text-xl font-bold text-emerald-800">{formatCurrency(soldData.reduce((acc, curr) => acc + (curr[keys.PRICE] || 0), 0))}</p></div>
+                                        <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-100 text-right"><p className="text-xs text-blue-600 font-semibold uppercase">Total Recebido</p><p className="text-xl font-bold text-blue-800">{formatCurrency(soldData.reduce((acc, curr) => acc + (curr[keys.RECEIVED_AMOUNT] || 0), 0))}</p></div>
+                                        <div className="bg-amber-50 px-4 py-2 rounded-lg border border-amber-100 text-right"><p className="text-xs text-amber-600 font-semibold uppercase">Total A Receber</p><p className="text-xl font-bold text-amber-800">{formatCurrency(soldData.reduce((acc, curr) => acc + ((curr[keys.PRICE] || 0) - (curr[keys.RECEIVED_AMOUNT] || 0)), 0))}</p></div>
+                                    </div>
                                 </div>
                              </div>
                              <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm text-slate-600">
-                                    <thead className="bg-slate-50 text-slate-700 font-semibold uppercase text-xs"><tr><th className="px-6 py-4">Data Venda</th><th className="px-6 py-4">Prefixo</th><th className="px-6 py-4">Placa</th><th className="px-6 py-4">Ano</th><th className="px-6 py-4">Comprador</th><th className="px-6 py-4 text-right">Valor Venda</th><th className="px-6 py-4 text-center">Ações</th></tr></thead>
+                                    <thead className="bg-slate-50 text-slate-700 font-semibold uppercase text-xs">
+                                        <tr>
+                                            <th className="px-6 py-4">Data Venda</th>
+                                            <th className="px-6 py-4">Prefixo / Placa</th>
+                                            <th className="px-6 py-4">Comprador</th>
+                                            <th className="px-6 py-4 text-right">Valor Venda</th>
+                                            <th className="px-6 py-4 text-right text-emerald-600">Valor Recebido</th>
+                                            <th className="px-6 py-4 text-right text-amber-600">A Receber</th>
+                                            <th className="px-6 py-4 text-center">Ações</th>
+                                        </tr>
+                                    </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {soldData.length > 0 ? (soldData.map((bus, idx) => (
+                                        {soldData.length > 0 ? (soldData.map((bus, idx) => {
+                                                const preco = bus[keys.PRICE] || 0;
+                                                const recebido = bus[keys.RECEIVED_AMOUNT] || 0;
+                                                const aReceber = preco - recebido;
+                                                return (
                                                 <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                                                    <td className="px-6 py-4 text-slate-500">{bus[keys.SALE_DATE] || '-'}</td><td className="px-6 py-4 font-medium text-slate-900">{bus[keys.PREFIXO]}</td><td className="px-6 py-4">{bus[keys.PLACA]}</td><td className="px-6 py-4">{bus[keys.ANO]}</td><td className="px-6 py-4 font-medium text-emerald-700">{bus[keys.BUYER]}</td><td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(bus[keys.PRICE])}</td>
-                                                    <td className="px-6 py-4 text-center"><button onClick={() => handleCancelSale(bus)} className="text-red-400 hover:text-red-600 transition-colors p-1 rounded-full hover:bg-red-50 flex items-center justify-center gap-1 mx-auto text-xs font-medium" title="Cancelar Venda"><RotateCcw className="w-4 h-4" /> Cancelar</button></td>
+                                                    <td className="px-6 py-4 text-slate-500">{bus[keys.SALE_DATE] || '-'}</td>
+                                                    <td className="px-6 py-4 font-medium text-slate-900">{bus[keys.PREFIXO]} <span className="text-slate-400 font-normal ml-1">({bus[keys.PLACA]})</span></td>
+                                                    <td className="px-6 py-4 font-medium text-slate-700">{bus[keys.BUYER]}</td>
+                                                    <td className="px-6 py-4 text-right font-bold text-slate-800">{formatCurrency(preco)}</td>
+                                                    <td className="px-6 py-4 text-right font-medium text-emerald-600">{formatCurrency(recebido)}</td>
+                                                    <td className="px-6 py-4 text-right font-bold text-amber-600">{formatCurrency(aReceber)}</td>
+                                                    <td className="px-6 py-4 flex gap-2 justify-center">
+                                                        <button onClick={() => setUpdatingPayment(bus)} className="text-blue-500 hover:text-blue-700 transition-colors p-1.5 rounded-full hover:bg-blue-50" title="Atualizar Pagamento"><Wallet className="w-4 h-4" /></button>
+                                                        <button onClick={() => handleCancelSale(bus)} className="text-red-400 hover:text-red-600 transition-colors p-1.5 rounded-full hover:bg-red-50" title="Cancelar Venda"><RotateCcw className="w-4 h-4" /></button>
+                                                    </td>
                                                 </tr>
-                                            ))) : (<tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400"><ShoppingCart className="w-12 h-12 mx-auto mb-3 text-slate-200" /><p>Nenhum veículo vendido registrado ainda.</p></td></tr>)}
+                                            )})) : (<tr><td colSpan="7" className="px-6 py-12 text-center text-slate-400"><ShoppingCart className="w-12 h-12 mx-auto mb-3 text-slate-200" /><p>Nenhum veículo vendido registado ainda.</p></td></tr>)}
                                     </tbody>
                                 </table>
                              </div>
@@ -1202,6 +1296,7 @@
                     
                     {editingVehicle && <EditModal bus={editingVehicle} currentSituacao={editingVehicle[keys.SITUACAO]} currentStatus={editingVehicle[keys.STATUS]} currentNovoPrefixo={editingVehicle[keys.NOVO_PREFIXO]} currentBanco={editingVehicle[keys.BANCO]} onClose={() => setEditingVehicle(null)} onSave={handleSaveEdit} situacaoOptions={uniqueValues.situacao} statusOptions={uniqueValues.status} bancoOptions={uniqueValues.banco} />}
                     {sellingVehicle && <SalesModal bus={sellingVehicle} onClose={() => setSellingVehicle(null)} onConfirm={handleConfirmSale} />}
+                    {updatingPayment && <PaymentModal bus={updatingPayment} keys={keys} onClose={() => setUpdatingPayment(null)} onConfirm={handleUpdatePayment} />}
                     {isSettingsOpen && <SettingsModal initialOptions={uniqueValues} onClose={() => setIsSettingsOpen(false)} onSave={handleSaveSettings} />}
 
                     <div className="mt-8 flex flex-col items-center justify-center gap-2 text-xs text-slate-400">Dashboard de Frota • Firebase Secured</div>
