@@ -350,13 +350,18 @@
             );
         };
 
-        const LoginScreen = ({ onLogin, error, isLoading }) => {
+        const LoginScreen = ({ onLogin, onRegister, error, isLoading }) => {
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
+            const [isRegistering, setIsRegistering] = useState(false);
 
             const handleSubmit = (e) => {
                 e.preventDefault();
-                onLogin(email, password);
+                if (isRegistering) {
+                    onRegister(email, password);
+                } else {
+                    onLogin(email, password);
+                }
             };
 
             return (
@@ -367,8 +372,12 @@
                                 <Bus className="w-12 h-12 text-blue-600" />
                             </div>
                         </div>
-                        <h2 className="text-2xl font-bold text-center text-slate-800 mb-2">Acesso Seguro</h2>
-                        <p className="text-center text-slate-500 mb-8">Entre com sua conta do sistema</p>
+                        <h2 className="text-2xl font-bold text-center text-slate-800 mb-2">
+                            {isRegistering ? 'Criar Nova Conta' : 'Acesso Seguro'}
+                        </h2>
+                        <p className="text-center text-slate-500 mb-8">
+                            {isRegistering ? 'Registe-se para aceder ao sistema' : 'Entre com a sua conta do sistema'}
+                        </p>
                         
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
@@ -383,7 +392,7 @@
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
+                                <label className="block text-sm font-medium text-slate-700 mb-1">Palavra-passe</label>
                                 <div className="relative">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <Lock className="h-5 w-5 text-slate-400" />
@@ -395,14 +404,15 @@
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
                                         required
+                                        minLength={6}
                                     />
                                 </div>
                             </div>
                             
                             {error && (
                                 <div className="bg-red-50 p-3 rounded-lg flex items-center gap-2 text-red-700 text-sm animate-pulse">
-                                    <AlertTriangle className="w-4 h-4" />
-                                    {error}
+                                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                                    <span>{error}</span>
                                 </div>
                             )}
                             
@@ -411,11 +421,22 @@
                                 disabled={isLoading}
                                 className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-md hover:shadow-lg transform active:scale-95 duration-150 ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                             >
-                                {isLoading ? 'Verificando...' : 'Entrar no Painel'} <ArrowRight className="w-4 h-4" />
+                                {isLoading ? 'A processar...' : (isRegistering ? 'Registar Conta' : 'Entrar no Painel')} 
+                                {!isLoading && <ArrowRight className="w-4 h-4" />}
                             </button>
                         </form>
                         
-                        <p className="mt-8 text-center text-xs text-slate-400 border-t border-slate-100 pt-4">
+                        <div className="mt-6 text-center">
+                            <button 
+                                type="button" 
+                                onClick={() => { setIsRegistering(!isRegistering); setPassword(''); setLoginError(''); }} 
+                                className="text-sm text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                            >
+                                {isRegistering ? 'Já tem uma conta? Iniciar sessão' : 'Não tem conta? Registar-se'}
+                            </button>
+                        </div>
+
+                        <p className="mt-6 text-center text-xs text-slate-400 border-t border-slate-100 pt-4">
                             Protegido por Google Firebase Auth
                         </p>
                     </div>
@@ -601,7 +622,7 @@
                 }, (error) => {
                     console.error("Erro Firestore:", error);
                     let msg = `Erro de Conexão: ${error.message}`;
-                    if (error.code === 'permission-denied') msg = "Permissão Negada: Usuário sem acesso.";
+                    if (error.code === 'permission-denied') msg = "Permissão Negada: Utilizador sem acesso.";
                     setFirebaseError(msg);
                     setIsLoading(false);
                 });
@@ -615,14 +636,41 @@
                 setAuthLoading(true);
                 try {
                     await auth.signInWithEmailAndPassword(email, password);
-                    // O useEffect do onAuthStateChanged vai lidar com o resto
                 } catch (err) {
-                    console.error(err);
-                    let msg = "Erro ao entrar.";
-                    if (err.code === 'auth/invalid-email') msg = "E-mail inválido.";
-                    if (err.code === 'auth/user-not-found') msg = "Usuário não encontrado.";
-                    if (err.code === 'auth/wrong-password') msg = "Senha incorreta.";
-                    if (err.code === 'auth/invalid-credential') msg = "Credenciais inválidas.";
+                    let msg = "Erro ao iniciar sessão. Verifique as suas credenciais.";
+                    
+                    if (err.code === 'auth/invalid-email') {
+                        msg = "O formato do e-mail é inválido.";
+                    } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+                        msg = "E-mail ou palavra-passe incorretos.";
+                    } else if (err.code === 'auth/too-many-requests') {
+                        msg = "Muitas tentativas falhadas. Tente novamente mais tarde.";
+                    } else {
+                        msg = `Falha na autenticação: ${err.message}`;
+                    }
+
+                    setLoginError(msg);
+                    setAuthLoading(false);
+                }
+            };
+
+            const handleRegister = async (email, password) => {
+                setLoginError('');
+                setAuthLoading(true);
+                try {
+                    await auth.createUserWithEmailAndPassword(email, password);
+                } catch (err) {
+                    let msg = "Erro ao registar conta.";
+                    if (err.code === 'auth/email-already-in-use') {
+                        msg = "Este e-mail já está em uso.";
+                    } else if (err.code === 'auth/invalid-email') {
+                        msg = "O formato do e-mail é inválido.";
+                    } else if (err.code === 'auth/weak-password') {
+                        msg = "A palavra-passe deve ter pelo menos 6 caracteres.";
+                    } else {
+                        msg = `Falha ao registar: ${err.message}`;
+                    }
+                    
                     setLoginError(msg);
                     setAuthLoading(false);
                 }
@@ -912,11 +960,11 @@
 
             // === RENDERIZAÇÃO ===
             
-            if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-pulse flex flex-col items-center"><Bus className="w-12 h-12 text-slate-300 mb-4" /><p className="text-slate-500 font-medium">Carregando sistema...</p></div></div>;
+            if (authLoading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-pulse flex flex-col items-center"><Bus className="w-12 h-12 text-slate-300 mb-4" /><p className="text-slate-500 font-medium">A carregar o sistema...</p></div></div>;
 
             // Se não estiver logado, mostra Login
             if (!user) {
-                return <LoginScreen onLogin={handleLogin} error={loginError} isLoading={authLoading} />;
+                return <LoginScreen onLogin={handleLogin} onRegister={handleRegister} error={loginError} isLoading={authLoading} />;
             }
 
             // Se estiver logado, mostra Dashboard
@@ -967,11 +1015,10 @@
                     {view === 'dashboard' && (
                         <div className="animate-in fade-in duration-500">
                             <div className="mb-6"><Card title="Total de Veículos" value={metrics.total} icon={Bus} color="blue" subtext="Limpar filtros" featured={true} clickable={true} onClick={clearFilters} /></div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-                                <Card title="Recreio (RTP)" value={metrics.statusCountsByCode['RTP']} icon={Bus} color="blue" subtext="Veículos Recreio" clickable={true} onClick={() => handleChartClick('status', 'RTP')} />
-                                <Card title="Braso Lisboa (ETBL)" value={metrics.statusCountsByCode['ETBL']} icon={Bus} color="amber" subtext="Veículos Braso" clickable={true} onClick={() => handleChartClick('status', 'ETBL')} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                                 <Card title="Palmas (P)" value={metrics.statusCountsByCode['P']} icon={MapPin} color="purple" subtext="Veículos Palmas" clickable={true} onClick={() => handleChartClick('status', 'P')} />
                                 <Card title="Alugado (A)" value={metrics.statusCountsByCode['A']} icon={CreditCard} color="emerald" subtext="Veículos Alugados" clickable={true} onClick={() => handleChartClick('status', 'A')} />
+                                <Card title="Braso Lisboa (ETBL)" value={metrics.statusCountsByCode['ETBL']} icon={Bus} color="amber" subtext="Veículos Braso" clickable={true} onClick={() => handleChartClick('status', 'ETBL')} />
                                 <Card title="Rio (R)" value={metrics.statusCountsByCode['R']} icon={MapPin} color="red" subtext="Veículos Rio" clickable={true} onClick={() => handleChartClick('status', 'R')} />
                             </div>
                             <div className="mb-8"><h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 ml-1 flex items-center gap-2"><Calendar className="w-4 h-4" /> Frota por Ano</h3>{metrics.anosList.length > 0 ? (<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">{metrics.anosList.map((item) => (<Card key={item.name} title={`Ano ${item.name}`} value={item.value} icon={Calendar} color={item.name === 'N/D' ? 'red' : 'slate'} compact={true} clickable={true} onClick={() => handleYearClick(item.name)} />))}</div>) : (<div className="p-4 bg-yellow-50 text-yellow-700 rounded-lg flex items-center gap-2"><AlertCircle className="w-5 h-5" /> Nenhum dado de ano disponível.</div>)}</div>
