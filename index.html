@@ -949,7 +949,7 @@
                 const total = dataToUse.length;
                 const situacaoCount = {}; const statusCount = {}; const bancoCount = {}; const fornecedoraCount = {}; const chassiCount = {}; const anoCount = {};
                 let operacionais = 0; let liberados = 0; let emManutencao = 0; let emReforma = 0; let vendidos = 0;
-                const statusCountsByCode = { 'RTP': 0, 'ETBL': 0, 'P': 0, 'A': 0, 'R': 0 };
+                const dynamicStatusCounts = {};
 
                 dataToUse.forEach(bus => {
                     const sitRaw = bus[keys.SITUACAO] || '';
@@ -965,7 +965,9 @@
                     const rawStatus = bus[keys.STATUS] || 'Outros';
                     const statusLabel = STATUS_MAP[rawStatus] || rawStatus;
                     statusCount[statusLabel] = (statusCount[statusLabel] || 0) + 1;
-                    if (statusCountsByCode.hasOwnProperty(rawStatus)) statusCountsByCode[rawStatus]++;
+                    
+                    const codeStatus = bus[keys.STATUS] || 'N/D';
+                    dynamicStatusCounts[codeStatus] = (dynamicStatusCounts[codeStatus] || 0) + 1;
 
                     const banco = bus[keys.BANCO] || 'Outros'; bancoCount[banco] = (bancoCount[banco] || 0) + 1;
                     const forn = bus[keys.FORNECEDORA] || 'Outros'; fornecedoraCount[forn] = (fornecedoraCount[forn] || 0) + 1;
@@ -984,7 +986,7 @@
                         if (yearA > 0 && yearB > 0) return yearB - yearA; return b.name.localeCompare(a.name);
                     });
 
-                return { total, operacionais, liberados, emManutencao, emReforma, vendidos, statusCountsByCode, situacaoChart: formatForChart(situacaoCount), statusChart: formatForChart(statusCount), bancoChart: formatForChart(bancoCount), fornecedoraChart: formatForChart(fornecedoraCount), chassiChart: formatForChart(chassiCount), anosList: formatYears(anoCount) };
+                return { total, operacionais, liberados, emManutencao, emReforma, vendidos, dynamicStatusCounts, situacaoChart: formatForChart(situacaoCount), statusChart: formatForChart(statusCount), bancoChart: formatForChart(bancoCount), fornecedoraChart: formatForChart(fornecedoraCount), chassiChart: formatForChart(chassiCount), anosList: formatYears(anoCount) };
             }, [filteredData, keys]); 
 
             const uniqueValues = useMemo(() => {
@@ -1082,11 +1084,42 @@
                     {view === 'dashboard' && (
                         <div className="animate-in fade-in duration-500">
                             <div className="mb-6"><Card title="Total de Veículos" value={metrics.total} icon={Bus} color="blue" subtext="Limpar filtros" featured={true} clickable={true} onClick={clearFilters} /></div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                                <Card title="Palmas (P)" value={metrics.statusCountsByCode['P']} icon={MapPin} color="purple" subtext="Veículos Palmas" clickable={true} onClick={() => handleChartClick('status', 'P')} />
-                                <Card title="Alugado (A)" value={metrics.statusCountsByCode['A']} icon={CreditCard} color="emerald" subtext="Veículos Alugados" clickable={true} onClick={() => handleChartClick('status', 'A')} />
-                                <Card title="Braso Lisboa (ETBL)" value={metrics.statusCountsByCode['ETBL']} icon={Bus} color="amber" subtext="Veículos Braso" clickable={true} onClick={() => handleChartClick('status', 'ETBL')} />
-                                <Card title="Rio (R)" value={metrics.statusCountsByCode['R']} icon={MapPin} color="red" subtext="Veículos Rio" clickable={true} onClick={() => handleChartClick('status', 'R')} />
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-6 mb-8">
+                                {Object.entries(metrics.dynamicStatusCounts)
+                                    .sort((a, b) => {
+                                        const order = ['P', 'A', 'ETBL', 'R', 'RTP'];
+                                        const idxA = order.indexOf(a[0]);
+                                        const idxB = order.indexOf(b[0]);
+                                        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                                        if (idxA !== -1) return -1;
+                                        if (idxB !== -1) return 1;
+                                        return a[0].localeCompare(b[0]);
+                                    })
+                                    .map(([statusCode, count]) => {
+                                        let icon = Bus;
+                                        let color = "slate";
+                                        if (statusCode === 'P') { icon = MapPin; color = "purple"; }
+                                        else if (statusCode === 'A') { icon = CreditCard; color = "emerald"; }
+                                        else if (statusCode === 'ETBL') { icon = Bus; color = "amber"; }
+                                        else if (statusCode === 'R') { icon = MapPin; color = "red"; }
+                                        else if (statusCode === 'RTP') { icon = Bus; color = "blue"; }
+
+                                        const title = STATUS_MAP[statusCode] ? `${STATUS_MAP[statusCode]} (${statusCode})` : statusCode;
+                                        const subtext = `Veículos ${STATUS_MAP[statusCode] || statusCode}`;
+
+                                        return (
+                                            <Card 
+                                                key={statusCode} 
+                                                title={title} 
+                                                value={count} 
+                                                icon={icon} 
+                                                color={color} 
+                                                subtext={subtext} 
+                                                clickable={true} 
+                                                onClick={() => handleChartClick('status', statusCode)} 
+                                            />
+                                        );
+                                    })}
                             </div>
                             <div className="mb-8"><h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-4 ml-1 flex items-center gap-2"><Calendar className="w-4 h-4" /> Frota por Ano</h3>{metrics.anosList.length > 0 ? (<div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">{metrics.anosList.map((item) => (<Card key={item.name} title={`Ano ${item.name}`} value={item.value} icon={Calendar} color={item.name === 'N/D' ? 'red' : 'slate'} compact={true} clickable={true} onClick={() => handleYearClick(item.name)} />))}</div>) : (<div className="p-4 bg-yellow-50 text-yellow-700 rounded-lg flex items-center gap-2"><AlertCircle className="w-5 h-5" /> Nenhum dado de ano disponível.</div>)}</div>
                             
