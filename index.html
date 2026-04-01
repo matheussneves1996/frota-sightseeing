@@ -628,6 +628,7 @@
             const [loginError, setLoginError] = useState('');
 
             const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+            const [soldSortConfig, setSoldSortConfig] = useState({ key: 'comprador', direction: 'asc' });
             const [filters, setFilters] = useState({ status: [], situacao: [], banco: [], category: '', ano: '' });
             const [editingVehicle, setEditingVehicle] = useState(null);
             const [sellingVehicle, setSellingVehicle] = useState(null);
@@ -903,6 +904,11 @@
                 if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
                 setSortConfig({ key, direction });
             };
+            const requestSoldSort = (key) => {
+                let direction = 'asc';
+                if (soldSortConfig.key === key && soldSortConfig.direction === 'asc') direction = 'desc';
+                setSoldSortConfig({ key, direction });
+            };
 
             const filteredData = useMemo(() => {
                 let data = fleetData.filter(item => !item[keys.IS_SOLD]);
@@ -942,7 +948,53 @@
                 return data;
             }, [fleetData, filters, searchTerm, keys]);
 
-            const soldData = useMemo(() => fleetData.filter(item => item[keys.IS_SOLD]), [fleetData, keys]);
+            const soldData = useMemo(() => {
+                let data = fleetData.filter(item => item[keys.IS_SOLD]);
+                
+                // Função auxiliar para converter a data DD/MM/AAAA num valor comparável
+                const parseDate = (dateStr) => {
+                    if (!dateStr) return 0;
+                    const parts = dateStr.split('/');
+                    if (parts.length === 3) {
+                        return new Date(parts[2], parts[1] - 1, parts[0]).getTime();
+                    }
+                    return new Date(dateStr).getTime() || 0;
+                };
+
+                if (soldSortConfig.key) {
+                    data.sort((a, b) => {
+                        let valA = a[soldSortConfig.key];
+                        let valB = b[soldSortConfig.key];
+
+                        if (soldSortConfig.key === keys.SALE_DATE) {
+                            valA = parseDate(valA);
+                            valB = parseDate(valB);
+                        } else if (soldSortConfig.key === keys.PRICE || soldSortConfig.key === keys.RECEIVED_AMOUNT) {
+                            valA = parseFloat(valA) || 0;
+                            valB = parseFloat(valB) || 0;
+                        } else if (soldSortConfig.key === 'A_RECEBER') {
+                            valA = (parseFloat(a[keys.PRICE]) || 0) - (parseFloat(a[keys.RECEIVED_AMOUNT]) || 0);
+                            valB = (parseFloat(b[keys.PRICE]) || 0) - (parseFloat(b[keys.RECEIVED_AMOUNT]) || 0);
+                        } else {
+                            valA = (valA || '').toString().toUpperCase();
+                            valB = (valB || '').toString().toUpperCase();
+                        }
+
+                        if (valA < valB) return soldSortConfig.direction === 'asc' ? -1 : 1;
+                        if (valA > valB) return soldSortConfig.direction === 'asc' ? 1 : -1;
+
+                        // Se houver empate (ou se não estiver a ordenar por data), desempata pela data (mais recente primeiro)
+                        if (soldSortConfig.key !== keys.SALE_DATE) {
+                            const dateA = parseDate(a[keys.SALE_DATE]);
+                            const dateB = parseDate(b[keys.SALE_DATE]);
+                            return dateB - dateA;
+                        }
+                        return 0;
+                    });
+                }
+
+                return data;
+            }, [fleetData, keys, soldSortConfig]);
 
             const metrics = useMemo(() => {
                 const dataToUse = filteredData; 
@@ -1016,9 +1068,9 @@
                 return data;
             }, [filteredData, sortConfig, keys]);
 
-            const SortableHeader = ({ label, sortKey }) => (
-                <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors group select-none whitespace-nowrap" onClick={() => requestSort(sortKey)}>
-                    <div className="flex items-center gap-2">{label}{sortConfig.key === sortKey ? (sortConfig.direction === 'asc' ? <ArrowUp className="w-4 h-4 text-blue-600" /> : <ArrowDown className="w-4 h-4 text-blue-600" />) : (<ArrowUpDown className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />)}</div>
+            const SortableHeader = ({ label, sortKey, currentSort, onRequestSort, align = "left" }) => (
+                <th className="px-6 py-4 cursor-pointer hover:bg-slate-100 transition-colors group select-none whitespace-nowrap" onClick={() => onRequestSort(sortKey)}>
+                    <div className={`flex items-center gap-2 ${align === 'right' ? 'justify-end' : ''}`}>{label}{currentSort.key === sortKey ? (currentSort.direction === 'asc' ? <ArrowUp className="w-4 h-4 text-blue-600" /> : <ArrowDown className="w-4 h-4 text-blue-600" />) : (<ArrowUpDown className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />)}</div>
                 </th>
             );
             
@@ -1253,7 +1305,7 @@
                             <div className="overflow-x-auto rounded-b-xl">
                                 <table className="w-full text-left text-sm text-slate-600">
                                     <thead className="bg-slate-50 text-slate-700 font-semibold uppercase text-xs">
-                                        <tr><SortableHeader label="Prefixo" sortKey={keys.PREFIXO} /><SortableHeader label="Novo Prefixo" sortKey={keys.NOVO_PREFIXO} /><SortableHeader label="Placa" sortKey={keys.PLACA} /><SortableHeader label="Renavam" sortKey={keys.RENAVAM} /><SortableHeader label="Ano" sortKey={keys.ANO} /><SortableHeader label="Status" sortKey={keys.STATUS} /><SortableHeader label="Situação" sortKey={keys.SITUACAO} /><SortableHeader label="Banco" sortKey={keys.BANCO} /><SortableHeader label="Modelo" sortKey={keys.MODELO} /><th className="px-6 py-4">Ações</th></tr>
+                                        <tr><SortableHeader label="Prefixo" sortKey={keys.PREFIXO} currentSort={sortConfig} onRequestSort={requestSort} /><SortableHeader label="Novo Prefixo" sortKey={keys.NOVO_PREFIXO} currentSort={sortConfig} onRequestSort={requestSort} /><SortableHeader label="Placa" sortKey={keys.PLACA} currentSort={sortConfig} onRequestSort={requestSort} /><SortableHeader label="Renavam" sortKey={keys.RENAVAM} currentSort={sortConfig} onRequestSort={requestSort} /><SortableHeader label="Ano" sortKey={keys.ANO} currentSort={sortConfig} onRequestSort={requestSort} /><SortableHeader label="Status" sortKey={keys.STATUS} currentSort={sortConfig} onRequestSort={requestSort} /><SortableHeader label="Situação" sortKey={keys.SITUACAO} currentSort={sortConfig} onRequestSort={requestSort} /><SortableHeader label="Banco" sortKey={keys.BANCO} currentSort={sortConfig} onRequestSort={requestSort} /><SortableHeader label="Modelo" sortKey={keys.MODELO} currentSort={sortConfig} onRequestSort={requestSort} /><th className="px-6 py-4">Ações</th></tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {processedData.length > 0 ? (processedData.map((bus, idx) => {
@@ -1293,15 +1345,15 @@
                                 <table className="w-full text-left text-sm text-slate-600">
                                     <thead className="bg-slate-50 text-slate-700 font-semibold uppercase text-xs">
                                         <tr>
-                                            <th className="px-6 py-4">Data Venda</th>
-                                            <th className="px-6 py-4">Prefixo / Placa</th>
-                                            <th className="px-6 py-4">Comprador</th>
-                                            <th className="px-6 py-4">Renavam</th>
-                                            <th className="px-6 py-4">Banco</th>
-                                            <th className="px-6 py-4">Status</th>
-                                            <th className="px-6 py-4 text-right">Valor Venda</th>
-                                            <th className="px-6 py-4 text-right text-emerald-600">Valor Recebido</th>
-                                            <th className="px-6 py-4 text-right text-amber-600">A Receber</th>
+                                            <SortableHeader label="Data Venda" sortKey={keys.SALE_DATE} currentSort={soldSortConfig} onRequestSort={requestSoldSort} />
+                                            <SortableHeader label="Prefixo / Placa" sortKey={keys.PREFIXO} currentSort={soldSortConfig} onRequestSort={requestSoldSort} />
+                                            <SortableHeader label="Comprador" sortKey={keys.BUYER} currentSort={soldSortConfig} onRequestSort={requestSoldSort} />
+                                            <SortableHeader label="Renavam" sortKey={keys.RENAVAM} currentSort={soldSortConfig} onRequestSort={requestSoldSort} />
+                                            <SortableHeader label="Banco" sortKey={keys.BANCO} currentSort={soldSortConfig} onRequestSort={requestSoldSort} />
+                                            <SortableHeader label="Status" sortKey={keys.STATUS} currentSort={soldSortConfig} onRequestSort={requestSoldSort} />
+                                            <SortableHeader label="Valor Venda" sortKey={keys.PRICE} currentSort={soldSortConfig} onRequestSort={requestSoldSort} align="right" />
+                                            <SortableHeader label="Valor Recebido" sortKey={keys.RECEIVED_AMOUNT} currentSort={soldSortConfig} onRequestSort={requestSoldSort} align="right" />
+                                            <SortableHeader label="A Receber" sortKey="A_RECEBER" currentSort={soldSortConfig} onRequestSort={requestSoldSort} align="right" />
                                             <th className="px-6 py-4 text-center">Ações</th>
                                         </tr>
                                     </thead>
@@ -1322,6 +1374,7 @@
                                                     <td className="px-6 py-4 text-right font-medium text-emerald-600">{formatCurrency(recebido)}</td>
                                                     <td className="px-6 py-4 text-right font-bold text-amber-600">{formatCurrency(aReceber)}</td>
                                                     <td className="px-6 py-4 flex gap-2 justify-center">
+                                                        <button onClick={() => handleEditClick(bus)} className="text-slate-400 hover:text-blue-600 transition-colors p-1.5 rounded-full hover:bg-blue-50" title="Editar Veículo (Status, Banco, etc)"><Edit className="w-4 h-4" /></button>
                                                         <button onClick={() => setUpdatingPayment(bus)} className="text-blue-500 hover:text-blue-700 transition-colors p-1.5 rounded-full hover:bg-blue-50" title="Atualizar Pagamento"><Wallet className="w-4 h-4" /></button>
                                                         <button onClick={() => handleCancelSale(bus)} className="text-red-400 hover:text-red-600 transition-colors p-1.5 rounded-full hover:bg-red-50" title="Cancelar Venda"><RotateCcw className="w-4 h-4" /></button>
                                                     </td>
