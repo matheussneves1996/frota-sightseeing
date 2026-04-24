@@ -1177,29 +1177,21 @@
                             
                             {/* --- GRÁFICOS RESPONSIVOS MELHORADOS --- */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                                {/* Gráfico 1: Situação (Pizza) */}
+                                {/* Gráfico 1: Situação (Barras Horizontais) */}
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col min-w-0">
                                     <h3 className="text-lg font-semibold mb-4">Situação Operacional</h3>
                                     <div className="h-72 md:h-80 w-full">
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <PieChart>
-                                                <Pie 
-                                                    data={metrics.situacaoChart} 
-                                                    cx="50%" 
-                                                    cy="50%" 
-                                                    labelLine={false} 
-                                                    label={({ value, percent }) => `${value} (${(percent * 100).toFixed(0)}%)`} 
-                                                    outerRadius="75%" 
-                                                    fill="#8884d8" 
-                                                    dataKey="value" 
-                                                    onClick={(data) => handleChartClick('situacao', data.name)}
-                                                    paddingAngle={2}
-                                                >
+                                            <BarChart data={metrics.situacaoChart} layout="vertical" margin={{ top: 5, right: 40, left: 0, bottom: 5 }}>
+                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
+                                                <XAxis type="number" hide />
+                                                <YAxis dataKey="name" type="category" width={120} tick={{fontSize: 11, fill: '#64748b'}} />
+                                                <Tooltip cursor={{fill: '#f1f5f9'}} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                                                <Bar dataKey="value" radius={[0, 4, 4, 0]} onClick={(data) => handleChartClick('situacao', data.name)} barSize={24}>
+                                                    <LabelList dataKey="value" position="right" style={{ fill: '#64748b', fontSize: '12px', fontWeight: 'bold' }} />
                                                     {metrics.situacaoChart.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                                                </Pie>
-                                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                                                <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                                            </PieChart>
+                                                </Bar>
+                                            </BarChart>
                                         </ResponsiveContainer>
                                     </div>
                                 </div>
